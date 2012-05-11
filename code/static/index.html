@@ -1,0 +1,40 @@
+<http>
+  <head>
+    <script src="/jquery-1.7.1.min.js"></script>
+  </head>
+  <body>
+    <h1>Welcome to CHAT!!!!</h1>
+
+    <div style="width: 400px; padding 4px;">
+      <div id="chat" style="height: 300px; border: black 1px solid;">
+      </div>
+      <div style="margin-top: 6px">
+        <input type="text" size="32" maxlength="32" id="text" style="float: left"/>
+        <input type="submit" id="send" value="send" style="float: right"/>
+      </div>
+    </div>
+    <script type="text/javascript">
+      function start() {
+          var ws = new WebSocket("ws://localhost:8080/chat");
+          ws.onopen = function()
+          {
+             ws.send("Message to send");
+             alert("Message is sent...");
+          };
+          ws.onmessage = function (evt) 
+          { 
+             var received_msg = evt.data;
+             alert("Message is received..." + received_msg);
+          };
+          ws.onclose = function()
+          { 
+             alert("Connection is closed..."); 
+          };
+      };
+      
+      $('#send').click(function(){
+          start();  
+      });
+    </script>
+  </body>
+</http>
