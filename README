@@ -1,0 +1,6 @@
+
+
+
+
+Good virtual X server on for linux is xvfb.
+nosetest --processes 8 --process-timeout=360
