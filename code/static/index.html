@@ -15,10 +15,12 @@
     </div>
     <script type="text/javascript">
       function start() {
+      
+          //var ws = new WebSocket("ws://echo.websocket.org/");
           var ws = new WebSocket("ws://localhost:8080/chat");
           ws.onopen = function()
           {
-             ws.send("Message to send");
+             ws.send("Message to send hej hej hej hej bajs bajs arne sune gote fingal quno to send hej hej hej hej bajs bajs arne sune gote fingal qunoto send hej hej hej hej bajs bajs arne sune gote fingal quno");
              alert("Message is sent...");
           };
           ws.onmessage = function (evt) 

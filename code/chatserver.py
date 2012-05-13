@@ -7,6 +7,9 @@ import time
 import socket  
 import threading
 import SocketServer
+import base64
+import struct
+import hashlib
 
 http_400 = "\
 HTTP/1.1 400 Bad Request\r\n\
@@ -27,28 +30,91 @@ http_101_websocket = "\
 HTTP/1.1 101 Switching Protocols\r\n\
 Upgrade: WebSocket\r\n\
 Connection: Upgrade\r\n\
-Sec-WebSocket-Accept: s3pPLMBiTxaQ9kYGzzhZRbK+xOo=\r\n\
+Sec-WebSocket-Accept: %s\r\n\
 \r\n\
 "
 
-filedir = os.path.dirname(os.path.abspath(__file__)) + '/static'
+WebSocketGUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
+filedir = os.path.dirname(os.path.abspath(__file__)) + '/static'
+        
 class HttpHandler(SocketServer.BaseRequestHandler):
 
     chat_clients = list()
-    char_clients_lock = threading.Lock()
+    chat_clients_lock = threading.Lock()
 
+    def get_message(self):
+        message = ""
+        while True:
+            
+            # add chunks to data while connected
+            
+            chunk = self.request.recv(1024)
+            if not chunk: return None
+            self.data += chunk
+
+            print "got chunk, data (len %d) is now '%s'" % (len(self.data), map(lambda x: hex(ord(x)), self.data))
+            
+            # wait for full header
+            
+            if len(self.data) < 2: continue
+
+            (b1, b2) = struct.unpack("!BB", self.data[:2])
+            finflag = b1 & 0x01
+            opcode = (b1 & 0xf0) >> 4
+            maskflag = (b2 & 0xff) >> 7
+            payloadlen = b2 & 0x7f
+
+            print "finflag %d, opcode %d, maskflag %d, payloadlen %d" % (finflag, opcode, maskflag, payloadlen)
+            
+            if maskflag != 1: return
+
+            headlen = 6
+            if len(self.data) < headlen: continue
+            
+            if payloadlen == 126:
+                headlen = 8
+                if len(self.data) < headlen: continue
+                payloadlen, = struct.unpack("!H", self.data[2:4])
+            elif payloadlen == 127:
+                headlen = 14
+                if len(self.data) < headlen: continue
+                payloadlen, = struct.unpack("!Q", self.data[2:10])
+                
+            if len(self.data) < headlen + payloadlen: continue
+            
+            mask = map(ord, self.data[(headlen - 4):headlen])
+            self.data = self.data[headlen:]
+
+            part = map(ord, self.data[:payloadlen])
+            self.data = self.data[payloadlen:]
+            
+            for i in range(len(part)):
+                part[i] = chr(part[i] ^ mask[i % 4])
+
+            print "got chunk  '%s'" % part
+                                
+            message += ''.join(part)
+
+            if finflag: break
+            
+        return message
+
+    @staticmethod
+    def send_message(client, message):
+        pass
+    
     def handle(self):
         
-        # Wait for end of HTTP header.
+        # wait for end of HTTP header
         
-        data = ""
-        while '\r\n\r\n' not in data:
-            data += self.request.recv(1024)
+        self.data = ""
+        while '\r\n\r\n' not in self.data:
+            self.data += self.request.recv(1024)
 
-        # Get path from header
+        # get path from header
             
-        header, data = data.split('\r\n\r\n', 1)
+        header, self.data = self.data.split('\r\n\r\n', 1)
 
         m = re.match('GET ([^ ]*) HTTP/1.1', header)
         if not m:
@@ -57,7 +123,7 @@ class HttpHandler(SocketServer.BaseRequestHandler):
 
         path = m.group(1)
 
-        # Handle files.
+        # handle files
         
         if path != '/chat':
             if not os.path.exists(filedir + path):
@@ -66,13 +132,39 @@ class HttpHandler(SocketServer.BaseRequestHandler):
             self.request.send(http_200_html + open(filedir + path, 'r').read())
             return
 
-        # Handle chat.
+        # handle chat
         
-        self.request.send(http_101_websocket)
+        headers = dict([h.split(': ') for h in re.split('\r\n', header)[1:] if ': ' in h])
+        
+        key = hashlib.sha1()
+        key.update(headers['Sec-WebSocket-Key'].strip() + WebSocketGUID)
+        accept = base64.b64encode(key.digest())
+        self.request.send(http_101_websocket % accept)
+
+        with self.chat_clients_lock:
+            my_id = len(self.chat_clients)
+            self.chat_clients.append(self.request)
+
+        print "client %d connected" % my_id
+        
         while True:
-            self.request.recv(1024)
+            message = self.get_message()
+            if None == message: break
+
+            print "  client %d got message '%s'" % (my_id, message)
+            
+            with self.chat_clients_lock:
+                for i in range(len(self.chat_clients)):
+                    if i != my_id and None != self.chat_clients[i]:
+                        print "  sending '%s' to client %d" % (message, i)
+                        self.send_message(self.chat_clients[i], message)
+
+        with self.chat_clients_lock:
+            self.chat_clients[my_id] = None
+            
+        print "client %d disconnected" % my_id
+            
         
-                
 class Server(SocketServer.ThreadingMixIn, SocketServer.TCPServer):
     allow_reuse_address = True
 
