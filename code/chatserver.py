@@ -52,8 +52,6 @@ class HttpHandler(SocketServer.BaseRequestHandler):
             chunk = self.request.recv(1024)
             if not chunk: return None
             self.data += chunk
-
-            print "got chunk, data (len %d) is now '%s'" % (len(self.data), map(lambda x: hex(ord(x)), self.data))
             
             # wait for full header
             
@@ -65,8 +63,6 @@ class HttpHandler(SocketServer.BaseRequestHandler):
             maskflag = (b2 & 0xff) >> 7
             payloadlen = b2 & 0x7f
 
-            print "finflag %d, opcode %d, maskflag %d, payloadlen %d" % (finflag, opcode, maskflag, payloadlen)
-            
             if maskflag != 1: return
 
             headlen = 6
@@ -92,8 +88,6 @@ class HttpHandler(SocketServer.BaseRequestHandler):
             for i in range(len(part)):
                 part[i] = chr(part[i] ^ mask[i % 4])
 
-            print "got chunk  '%s'" % part
-                                
             message += ''.join(part)
 
             if finflag: break
@@ -102,7 +96,20 @@ class HttpHandler(SocketServer.BaseRequestHandler):
 
     @staticmethod
     def send_message(client, message):
-        pass
+        length = len(message)
+        header = []
+        header.append(chr(0x81))
+        if length < 126:
+            header.append(chr(length))
+        elif length < 2**16:
+            header.append(chr(126))
+            header.append(struct.pack("!H", length))
+        else:
+            header.append(chr(127))
+            header.append(struct.pack("!Q", length))
+        data = "".join(header) + message
+
+        client.send(data)
     
     def handle(self):
         
@@ -146,13 +153,16 @@ class HttpHandler(SocketServer.BaseRequestHandler):
             self.chat_clients.append(self.request)
 
         print "client %d connected" % my_id
+
+        print "  sending hello to client %d" % my_id
+        self.send_message(self.request, "Welcome to the chat!!")
         
         while True:
             message = self.get_message()
             if None == message: break
 
-            print "  client %d got message '%s'" % (my_id, message)
-            
+            print "client %d got message '%s'" % (my_id, message)
+
             with self.chat_clients_lock:
                 for i in range(len(self.chat_clients)):
                     if i != my_id and None != self.chat_clients[i]:
