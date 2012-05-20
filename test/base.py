@@ -17,9 +17,12 @@ def kill_browser(browser):
         browser.quit()
     
 class TestBase(unittest.TestCase):
-
+    """ Base class for selenium tests. """
+    
     @classmethod
     def setUpClass(cls):
+        # Reuse one profile and browser per test class since it takes
+        # a while to start.
         cls.browser = start_browser()
 
     @classmethod
@@ -28,6 +31,8 @@ class TestBase(unittest.TestCase):
 
     def tearDown(self):
         if sys.exc_info() != (None, None, None):
+            # Save a screenshot if a test fails, this will help with
+            # debugging.
             directory = "/tmp/selenium-screenshots"
             if not os.path.exists(directory):
                 os.mkdir(directory)
@@ -37,6 +42,7 @@ class TestBase(unittest.TestCase):
             open(filename + '.html', 'w').write(self.browser.page_source.encode("utf-8"))
 
 def run_chat_server():
+    # Redirect stderr and stdout to files for debugging.
     os.close(1)
     os.open("/tmp/chatserver.out", os.O_WRONLY | os.O_CREAT | os.O_APPEND)
     os.close(2)
@@ -45,7 +51,8 @@ def run_chat_server():
     os.execlp(server, server)
 
 class RunChatServerTestBase(TestBase):
-
+    """ Base test that will start and stop the chat server. """
+    
     @classmethod
     def setUpClass(cls):
         cls.chat_server = Process(target = run_chat_server)
@@ -56,7 +63,6 @@ class RunChatServerTestBase(TestBase):
     def kill_server(server):
         server.terminate()
         server.join()
-        
         
     @classmethod
     def tearDownClass(cls):

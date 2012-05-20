@@ -1,6 +1,52 @@
+Just som random advice and best practices for using Selenium.
 
 
+* Selenium tests can be rather volatile, failing intermittently.  This
+  the case especially when using javascript, AJAX, iframes, frames or
+  anything that makes page rendering timing dependent. To combat this
+  use helper methods rather than the Selenium API directly. Then you
+  will be able to easily insert waiting code in all tests as once by
+  altering the helper methods. The waiting code should wait for things
+  present on page or events, simple sleeps won't do.
 
+  
+* If tests start to fail intermittently try to fix them immediatly,
+  otherwise stuff tends to go out of control, and then all your tests
+  are for nothing.
 
-Good virtual X server on for linux is xvfb.
-nosetest --processes 8 --process-timeout=360
+  
+* This is more of a general test advice. Since Selenium tests use the
+  GUI they are often needs a fully installed system to work, pure
+  unittests are hard to implement. If you try to follow the follwing
+  rules you will be able to develop and run test smootly and also run
+  them in parallell, which is nice since Selenium tests tend to be
+  slow. 
+
+  1, Tests should not use interfering data. If possible try to set up
+  new users and prepare new buissiness data for each test case.
+
+  2, It should be possible to run the same test case any number of
+  times in a row without reinstalling the system (do not prepare the
+  system in advance with data that is destroyed by the test case).
+
+  3, Test cases should be runnable in parallell. This will make your
+  test suite run faster, and it will also find bugs that you would not
+  find otherwise. The real users will use your GUI in parallell too.
+
+  Following those rules is not always possible, if there are only a
+  few test that are breaking the them it can be good to put them in a
+  special test suite to not interfere with the other tests.
+
+  
+* Try to use Xpath expressions as little as possible, of you change
+  the html you will need to change the Xpath expressions. There is no
+  error to add ids to the html elements purely to help with testing.
+
+  
+* If running the tests automatically on a GNU Linux system, the
+  virtual X server xvfb can be used.
+
+  
+* If using nosetest, try the --processes flag and set
+  --process-timeout to something high.
+
