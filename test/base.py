@@ -7,18 +7,24 @@ from multiprocessing import Process
 
 curr_dir = os.path.dirname(__file__)
 
+def start_browser():
+    profile = webdriver.FirefoxProfile()
+    profile.set_preference("webdriver_enable_native_events", False)
+    return webdriver.Firefox(firefox_profile = profile)
+
+def kill_browser(browser):
+    if not 'KB' in os.environ:
+        browser.quit()
+    
 class TestBase(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        profile = webdriver.FirefoxProfile()
-        profile.set_preference("webdriver_enable_native_events", False)
-        cls.browser = webdriver.Firefox(firefox_profile = profile)
+        cls.browser = start_browser()
 
     @classmethod
     def tearDownClass(cls):
-        if not 'KB' in os.environ:
-            cls.browser.quit()
+        kill_browser(cls.browser)
 
     def tearDown(self):
         if sys.exc_info() != (None, None, None):
